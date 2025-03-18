@@ -1,0 +1,11 @@
+{
+  "name": "scratch-card-game",
+  "version": "1.0.0",
+  "description": "Lotus Scratch Card Game",
+  "scripts": {
+    "start": "serve -s ."
+  },
+  "dependencies": {
+    "serve": "^14.2.1"
+  }
+}

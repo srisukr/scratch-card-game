@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scratch Card Game</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      text-align: center;
+      max-width: 500px;
+      padding: 20px;
+    }
+    
+    h1 {
+      color: #46bcb4;
+      margin-bottom: 5px;
+      line-height: 1.3;
+    }
+    
+    .subtitle {
+      color: #46bcb4;
+      margin-top: 0;
+      margin-bottom: 30px;
+      font-size: 1.75em;
+      line-height: 1.3;
+      font-weight: bold;
+    }
+    
+    .scratch-area {
+      position: relative;
+      width: 300px;
+      height: 150px;
+      margin: 30px auto;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .prize {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+      background-color: #f6af1a;
+      z-index: 1;
+      text-align: center;
+      padding: 0 10px;
+    }
+    
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: pointer;
+      z-index: 2;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      background-color: #46bcb4;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    
+    .btn:hover {
+      background-color: #3da8a1;
+    }
+    
+    .btn:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    
+    .win-message {
+      color: #4CAF50;
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 20px;
+      visibility: hidden;
+    }
+    
+    .balance-container {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .error-message {
+      color: #f44336;
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 20px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ขูดการ์ดรางวัลด้านล่าง</h1>
+    <div class="subtitle">เพื่อลุ้นรับโชคจากโลตัส</div>
+    
+    <div class="balance-container">
+      <span>สิทธิ์คงเหลือ: </span>
+      <span id="balance">10</span>
+    </div>
+    
+    <div class="scratch-area">
+      <div class="prize" id="prize"></div>
+      <canvas id="scratchCanvas" width="300" height="150"></canvas>
+    </div>
+    
+    <button class="btn" id="generateBtn">ลุ้นต่อ</button>
+    
+    <p class="win-message" id="winMessage"></p>
+    <p class="error-message" id="errorMessage">สิทธิ์หมดแล้ว ไปช๊อปต่อเพิ่มรับสิทธิ์ลุ้นรางวัล www.lotuss.com</p>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const canvas = document.getElementById('scratchCanvas');
+      const ctx = canvas.getContext('2d');
+      const prizeElement = document.getElementById('prize');
+      const generateBtn = document.getElementById('generateBtn');
+      const winMessage = document.getElementById('winMessage');
+      const balanceDisplay = document.getElementById('balance');
+      const errorMessage = document.getElementById('errorMessage');
+      
+      let isDrawing = false;
+      let lastX = 0;
+      let lastY = 0;
+      let scratchedPercentage = 0;
+      let totalPixels = canvas.width * canvas.height;
+      let scratchedPixels = 0;
+      let balance = 10; // Starting balance
+      
+      // List of possible prizes with their probabilities
+      const prizes = [
+        { text: "1 มายโลตัสคอยน์", probability: 0.5 },
+        { text: "คูปองส่วนลด 10 บาท", probability: 0.25 },
+        { text: "10 มายโลตัสคอยน์!", probability: 0.1 },
+        { text: "100 มายโลตัสคอยน์!", probability: 0.045 },
+        { text: "100000 มายโลตัสคอยน์!", probability: 0.005 }
+      ];
+      
+      // Function to get a random prize based on probability
+      function getRandomPrize() {
+        const rand = Math.random();
+        let cumulativeProbability = 0;
+        
+        for (const prize of prizes) {
+          cumulativeProbability += prize.probability;
+          if (rand < cumulativeProbability) {
+            return prize.text;
+          }
+        }
+        
+        // Fallback to first prize if something goes wrong
+        return prizes[0].text;
+      }
+      
+      // Initialize the scratch card
+      function initScratchCard() {
+        // Deduct from balance first
+        balance--;
+        balanceDisplay.textContent = balance;
+        
+        // Check if balance is zero
+        if (balance <= 0) {
+          errorMessage.style.display = 'block';
+          generateBtn.disabled = true;
+        }
+        
+        // Clear any existing drawing operations
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Get a random prize based on probability
+        const randomPrize = getRandomPrize();
+        prizeElement.textContent = randomPrize;
+        
+        // Clear the win message
+        winMessage.style.visibility = 'hidden';
+        
+        // Fill canvas with scratch-off layer
+        ctx.fillStyle = '#AAAAAA';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Add some texture/pattern to the scratch area
+        for (let i = 0; i < 5000; i++) {
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          const size = Math.random() * 2;
+          ctx.fillStyle = '#999999';
+          ctx.fillRect(x, y, size, size);
+        }
+        
+        // Add "ขูดที่นี่" text
+        ctx.font = '24px Arial';
+        ctx.fillStyle = '#333333';
+        ctx.textAlign = 'center';
+        ctx.fillText('ขูดที่นี่', canvas.width / 2, canvas.height / 2);
+        
+        // Reset variables
+        scratchedPercentage = 0;
+        scratchedPixels = 0;
+      }
+      
+      // Event listeners for scratchpad
+      canvas.addEventListener('mousedown', startScratch);
+      canvas.addEventListener('mousemove', scratch);
+      canvas.addEventListener('mouseup', stopScratch);
+      canvas.addEventListener('mouseleave', stopScratch);
+      
+      // Touch events for mobile
+      canvas.addEventListener('touchstart', handleTouchStart);
+      canvas.addEventListener('touchmove', handleTouchMove);
+      canvas.addEventListener('touchend', stopScratch);
+      
+      function handleTouchStart(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent('mousedown', {
+          clientX: touch.clientX,
+          clientY: touch.clientY
+        });
+        canvas.dispatchEvent(mouseEvent);
+      }
+      
+      function handleTouchMove(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent('mousemove', {
+          clientX: touch.clientX,
+          clientY: touch.clientY
+        });
+        canvas.dispatchEvent(mouseEvent);
+      }
+      
+      function startScratch(e) {
+        isDrawing = true;
+        [lastX, lastY] = getMousePos(canvas, e);
+      }
+      
+      function scratch(e) {
+        if (!isDrawing) return;
+        
+        const [currentX, currentY] = getMousePos(canvas, e);
+        
+        // Create a scratch effect (clear an area)
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = 20;
+        ctx.lineCap = 'round';
+        
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(currentX, currentY);
+        ctx.stroke();
+        
+        // Calculate roughly how many pixels were scratched
+        const distance = Math.sqrt(
+          Math.pow(currentX - lastX, 2) + Math.pow(currentY - lastY, 2)
+        );
+        scratchedPixels += distance * ctx.lineWidth;
+        scratchedPercentage = (scratchedPixels / totalPixels) * 100;
+        
+        // If 50% is scratched, reveal the prize
+        if (scratchedPercentage > 50 && winMessage.style.visibility !== 'visible') {
+          winMessage.textContent = "ยินดีด้วยคุณได้รับ " + prizeElement.textContent;
+          winMessage.style.visibility = 'visible';
+        }
+        
+        lastX = currentX;
+        lastY = currentY;
+      }
+      
+      function stopScratch() {
+        isDrawing = false;
+      }
+      
+      function getMousePos(canvas, e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        return [
+          (e.clientX - rect.left) * scaleX,
+          (e.clientY - rect.top) * scaleY
+        ];
+      }
+      
+      // Button event listener
+      generateBtn.addEventListener('click', function() {
+        // Only allow if balance is greater than 0
+        if (balance > 0) {
+          initScratchCard();
+        }
+      });
+      
+      // Initialize the first card without deducting balance
+      // First card is free
+      const initialPrize = getRandomPrize();
+      prizeElement.textContent = initialPrize;
+      
+      // Fill canvas with scratch-off layer
+      ctx.fillStyle = '#AAAAAA';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Add some texture/pattern to the scratch area
+      for (let i = 0; i < 5000; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const size = Math.random() * 2;
+        ctx.fillStyle = '#999999';
+        ctx.fillRect(x, y, size, size);
+      }
+      
+      // Add "ขูดที่นี่" text
+      ctx.font = '24px Arial';
+      ctx.fillStyle = '#333333';
+      ctx.textAlign = 'center';
+      ctx.fillText('ขูดที่นี่', canvas.width / 2, canvas.height / 2);
+    });
+  </script>
+</body>
+</html>
